@@ -1,5 +1,5 @@
 {
-  "name": "neulabscom/excel",
+  "name": "neulabscom/laravel-excel",
   "description": "Supercharged Excel exports and imports in Laravel",
   "license": "MIT",
   "keywords": [
