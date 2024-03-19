@@ -3,6 +3,8 @@
 namespace Maatwebsite\Excel\Tests\Concerns;
 
 use Carbon\Carbon;
+use Composer\InstalledVersions;
+use Composer\Semver\VersionParser;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromCollection;
@@ -14,10 +16,7 @@ use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
 class WithColumnFormattingTest extends TestCase
 {
-    /**
-     * @test
-     */
-    public function can_export_with_column_formatting()
+    public function test_can_export_with_column_formatting()
     {
         $export = new class() implements FromCollection, WithMapping, WithColumnFormatting
         {
@@ -66,11 +65,13 @@ class WithColumnFormattingTest extends TestCase
 
         $actual = $this->readAsArray(__DIR__ . '/../Data/Disks/Local/with-column-formatting-store.xlsx', 'Xlsx');
 
+        $legacyPhpSpreadsheet = !InstalledVersions::satisfies(new VersionParser, 'phpoffice/phpspreadsheet', '^1.28');
+
         $expected = [
             ['06/03/2018', null],
             ['07/03/2018', null],
             ['08/03/2018', null],
-            ['06/12/2021', '100 €'],
+            ['06/12/2021', $legacyPhpSpreadsheet ? '100 €' : '100.00 €'],
         ];
 
         $this->assertEquals($expected, $actual);

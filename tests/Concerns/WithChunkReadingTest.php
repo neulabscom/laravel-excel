@@ -2,6 +2,7 @@
 
 namespace Maatwebsite\Excel\Tests\Concerns;
 
+use DateTime;
 use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,7 @@ use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithFormatData;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Events\AfterImport;
@@ -20,6 +22,7 @@ use Maatwebsite\Excel\Reader;
 use Maatwebsite\Excel\Tests\Data\Stubs\Database\Group;
 use Maatwebsite\Excel\Tests\Data\Stubs\Database\User;
 use Maatwebsite\Excel\Tests\TestCase;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 use PHPUnit\Framework\Assert;
 use Throwable;
 
@@ -36,10 +39,7 @@ class WithChunkReadingTest extends TestCase
         $this->loadMigrationsFrom(dirname(__DIR__) . '/Data/Stubs/Database/Migrations');
     }
 
-    /**
-     * @test
-     */
-    public function can_import_to_model_in_chunks_un()
+    public function test_can_import_to_model_in_chunks_un()
     {
         DB::connection()->enableQueryLog();
 
@@ -98,10 +98,7 @@ class WithChunkReadingTest extends TestCase
         $this->assertEquals(1, $import->after, 'AfterImport was not called or more than once.');
     }
 
-    /**
-     * @test
-     */
-    public function can_import_to_model_in_chunks_and_insert_in_batches()
+    public function test_can_import_to_model_in_chunks_and_insert_in_batches()
     {
         DB::connection()->enableQueryLog();
 
@@ -143,10 +140,7 @@ class WithChunkReadingTest extends TestCase
         DB::connection()->disableQueryLog();
     }
 
-    /**
-     * @test
-     */
-    public function can_import_to_model_in_chunks_and_insert_in_batches_with_heading_row()
+    public function test_can_import_to_model_in_chunks_and_insert_in_batches_with_heading_row()
     {
         DB::connection()->enableQueryLog();
 
@@ -188,10 +182,7 @@ class WithChunkReadingTest extends TestCase
         DB::connection()->disableQueryLog();
     }
 
-    /**
-     * @test
-     */
-    public function can_import_csv_in_chunks_and_insert_in_batches()
+    public function test_can_import_csv_in_chunks_and_insert_in_batches()
     {
         DB::connection()->enableQueryLog();
 
@@ -233,10 +224,7 @@ class WithChunkReadingTest extends TestCase
         DB::connection()->disableQueryLog();
     }
 
-    /**
-     * @test
-     */
-    public function can_import_to_model_in_chunks_and_insert_in_batches_with_multiple_sheets()
+    public function test_can_import_to_model_in_chunks_and_insert_in_batches_with_multiple_sheets()
     {
         DB::connection()->enableQueryLog();
 
@@ -278,12 +266,9 @@ class WithChunkReadingTest extends TestCase
         DB::connection()->disableQueryLog();
     }
 
-    /**
-     * @test
-     */
-    public function can_import_to_array_in_chunks()
+    public function test_can_import_to_array_in_chunks()
     {
-        $import = new class implements ToArray, WithChunkReading
+        $import = new class implements ToArray, WithChunkReading, WithFormatData
         {
             use Importable;
 
@@ -313,10 +298,7 @@ class WithChunkReadingTest extends TestCase
         $this->assertEquals(50, $import->called);
     }
 
-    /**
-     * @test
-     */
-    public function can_import_to_model_in_chunks_and_insert_in_batches_with_multiple_sheets_objects_by_index()
+    public function test_can_import_to_model_in_chunks_and_insert_in_batches_with_multiple_sheets_objects_by_index()
     {
         DB::connection()->enableQueryLog();
 
@@ -391,10 +373,7 @@ class WithChunkReadingTest extends TestCase
         DB::connection()->disableQueryLog();
     }
 
-    /**
-     * @test
-     */
-    public function can_import_to_model_in_chunks_and_insert_in_batches_with_multiple_sheets_objects_by_name()
+    public function test_can_import_to_model_in_chunks_and_insert_in_batches_with_multiple_sheets_objects_by_name()
     {
         DB::connection()->enableQueryLog();
 
@@ -469,10 +448,7 @@ class WithChunkReadingTest extends TestCase
         DB::connection()->disableQueryLog();
     }
 
-    /**
-     * @test
-     */
-    public function can_catch_job_failed_in_chunks()
+    public function test_can_catch_job_failed_in_chunks()
     {
         $import = new class implements ToModel, WithChunkReading, WithEvents
         {
@@ -521,5 +497,73 @@ class WithChunkReadingTest extends TestCase
         }
 
         $this->assertTrue($import->failed, 'ImportFailed event was not called.');
+    }
+
+    public function test_can_import_to_array_and_format_in_chunks()
+    {
+        config()->set('excel.imports.read_only', false);
+
+        $import = new class implements ToArray, WithChunkReading, WithFormatData
+        {
+            use Importable;
+
+            /**
+             * @param  array  $array
+             */
+            public function array(array $array)
+            {
+                Assert::assertCount(2, $array);
+                Assert::assertCount(1, $array[0]);
+                Assert::assertCount(1, $array[1]);
+                Assert::assertIsString($array[0][0]);
+                Assert::assertIsString($array[1][0]);
+                Assert::assertEquals('01/12/22', $array[0][0]);
+                Assert::assertEquals('2023-02-20', $array[1][0]);
+            }
+
+            /**
+             * @return int
+             */
+            public function chunkSize(): int
+            {
+                return 2;
+            }
+        };
+
+        $import->import('import-batches-with-date.xlsx');
+    }
+
+    public function test_can_import_to_array_in_chunks_without_formatting()
+    {
+        config()->set('excel.imports.read_only', true);
+
+        $import = new class implements ToArray, WithChunkReading
+        {
+            use Importable;
+
+            /**
+             * @param  array  $array
+             */
+            public function array(array $array)
+            {
+                Assert::assertCount(2, $array);
+                Assert::assertCount(1, $array[0]);
+                Assert::assertCount(1, $array[1]);
+                Assert::assertIsInt($array[0][0]);
+                Assert::assertIsInt($array[1][0]);
+                Assert::assertEquals((int) Date::dateTimeToExcel(DateTime::createFromFormat('Y-m-d', '2022-12-01')->setTime(0, 0, 0, 0)), $array[0][0]);
+                Assert::assertEquals((int) Date::dateTimeToExcel(DateTime::createFromFormat('Y-m-d', '2023-02-20')->setTime(0, 0, 0, 0)), $array[1][0]);
+            }
+
+            /**
+             * @return int
+             */
+            public function chunkSize(): int
+            {
+                return 2;
+            }
+        };
+
+        $import->import('import-batches-with-date.xlsx');
     }
 }

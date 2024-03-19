@@ -1,5 +1,8 @@
 <?php
 
+use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\SyncQueue;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Maatwebsite\Excel\Jobs\AfterImportJob;
 use Maatwebsite\Excel\Jobs\QueueImport;
@@ -20,10 +23,7 @@ class ShouldQueueWithoutChainTest extends TestCase
         $this->loadMigrationsFrom(dirname(__DIR__) . '/Data/Stubs/Database/Migrations');
     }
 
-    /**
-     * @test
-     */
-    public function can_import_to_model_in_chunks()
+    public function test_can_import_to_model_in_chunks()
     {
         DB::connection()->enableQueryLog();
 
@@ -34,10 +34,7 @@ class ShouldQueueWithoutChainTest extends TestCase
         DB::connection()->disableQueryLog();
     }
 
-    /**
-     * @test
-     */
-    public function can_import_to_model_without_job_chaining()
+    public function test_can_import_to_model_without_job_chaining()
     {
         Queue::fake();
 
@@ -52,10 +49,7 @@ class ShouldQueueWithoutChainTest extends TestCase
         Queue::assertNotPushed(QueueImport::class);
     }
 
-    /**
-     * @test
-     */
-    public function a_queue_name_can_be_specified_when_importing()
+    public function test_a_queue_name_can_be_specified_when_importing()
     {
         Queue::fake();
 
@@ -66,5 +60,50 @@ class ShouldQueueWithoutChainTest extends TestCase
 
         Queue::assertPushedOn('queue-name', ReadChunk::class);
         Queue::assertPushedOn('queue-name', AfterImportJob::class);
+    }
+
+    public function test_the_cleanup_only_runs_when_all_jobs_are_done()
+    {
+        $fake = Queue::fake();
+
+        if (method_exists($fake, 'serializeAndRestore')) {
+            $fake->serializeAndRestore(); // More realism
+        }
+
+        $import = new QueueImportWithoutJobChaining();
+
+        $import->import('import-users.xlsx');
+
+        $jobs   = Queue::pushedJobs();
+        $chunks = collect($jobs[ReadChunk::class])->pluck('job');
+        $chunks->each(function (ReadChunk $chunk) {
+            self::assertFalse(ReadChunk::isComplete($chunk->getUniqueId()));
+        });
+        self::assertCount(2, $chunks);
+        $afterImport = $jobs[AfterImportJob::class][0]['job'];
+
+        if (!method_exists($fake, 'except')) {
+            /** @var SyncQueue $queue */
+            $fake = app(SyncQueue::class);
+            $fake->setContainer(app());
+        } else {
+            $fake->except([AfterImportJob::class, ReadChunk::class]);
+        }
+        $fake->push($chunks->first());
+        self::assertTrue(ReadChunk::isComplete($chunks->first()->getUniqueId()));
+        self::assertFalse(ReadChunk::isComplete($chunks->last()->getUniqueId()));
+
+        Event::listen(JobProcessed::class, function (JobProcessed $event) {
+            self::assertTrue($event->job->isReleased());
+        });
+        $fake->push($afterImport);
+        Event::forget(JobProcessed::class);
+        $fake->push($chunks->last());
+
+        Event::listen(JobProcessed::class, function (JobProcessed $event) {
+            self::assertFalse($event->job->isReleased());
+        });
+        $fake->push($afterImport);
+        Event::forget(JobProcessed::class);
     }
 }

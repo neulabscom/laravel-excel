@@ -15,10 +15,7 @@ use PHPUnit\Framework\Assert;
 
 class SkipsEmptyRowsTest extends TestCase
 {
-    /**
-     * @test
-     */
-    public function skips_empty_rows_when_importing_to_collection()
+    public function test_skips_empty_rows_when_importing_to_collection()
     {
         $import = new class implements ToCollection, SkipsEmptyRows
         {
@@ -46,10 +43,7 @@ class SkipsEmptyRowsTest extends TestCase
         $this->assertTrue($import->called);
     }
 
-    /**
-     * @test
-     */
-    public function skips_empty_rows_when_importing_on_each_row()
+    public function test_skips_empty_rows_when_importing_on_each_row()
     {
         $import = new class implements OnEachRow, SkipsEmptyRows
         {
@@ -73,10 +67,7 @@ class SkipsEmptyRowsTest extends TestCase
         $this->assertEquals(3, $import->rows);
     }
 
-    /**
-     * @test
-     */
-    public function skips_empty_rows_when_importing_to_model()
+    public function test_skips_empty_rows_when_importing_to_model()
     {
         $import = new class implements ToModel, SkipsEmptyRows
         {
@@ -101,10 +92,7 @@ class SkipsEmptyRowsTest extends TestCase
         $this->assertEquals(3, $import->rows);
     }
 
-    /**
-     * @test
-     */
-    public function custom_skips_rows_when_importing_to_collection()
+    public function test_custom_skips_rows_when_importing_to_collection()
     {
         $import = new class implements SkipsEmptyRows, ToCollection
         {
@@ -132,6 +120,62 @@ class SkipsEmptyRowsTest extends TestCase
         };
 
         $import->import('import-empty-rows.xlsx');
+        $this->assertTrue($import->called);
+    }
+
+    public function test_custom_skips_rows_when_importing_to_model()
+    {
+        $import = new class implements SkipsEmptyRows, ToModel
+        {
+            use Importable;
+
+            public $called = false;
+
+            /**
+             * @param  array  $row
+             */
+            public function model(array $row)
+            {
+                Assert::assertEquals('Not empty', $row[0]);
+            }
+
+            public function isEmptyWhen(array $row): bool
+            {
+                $this->called = true;
+
+                return $row[0] === 'Empty';
+            }
+        };
+
+        $import->import('skip-empty-rows-with-is-empty-when.xlsx');
+        $this->assertTrue($import->called);
+    }
+
+    public function test_custom_skips_rows_when_using_oneachrow()
+    {
+        $import = new class implements SkipsEmptyRows, OnEachRow
+        {
+            use Importable;
+
+            public $called = false;
+
+            /**
+             * @param  array  $row
+             */
+            public function onRow(Row $row)
+            {
+                Assert::assertEquals('Not empty', $row[0]);
+            }
+
+            public function isEmptyWhen(array $row): bool
+            {
+                $this->called = true;
+
+                return $row[0] === 'Empty';
+            }
+        };
+
+        $import->import('skip-empty-rows-with-is-empty-when.xlsx');
         $this->assertTrue($import->called);
     }
 }

@@ -13,6 +13,7 @@ use Maatwebsite\Excel\Files\RemoteTemporaryFile;
 use Maatwebsite\Excel\Files\TemporaryFile;
 use Maatwebsite\Excel\Jobs\AfterImportJob;
 use Maatwebsite\Excel\Jobs\ReadChunk;
+use Maatwebsite\Excel\SettingsProvider;
 use Maatwebsite\Excel\Tests\Data\Stubs\AfterQueueImportJob;
 use Maatwebsite\Excel\Tests\Data\Stubs\QueuedImport;
 use Maatwebsite\Excel\Tests\Data\Stubs\QueuedImportWithFailure;
@@ -33,10 +34,7 @@ class QueuedImportTest extends TestCase
         $this->loadMigrationsFrom(__DIR__ . '/Data/Stubs/Database/Migrations');
     }
 
-    /**
-     * @test
-     */
-    public function cannot_queue_import_that_does_not_implement_should_queue()
+    public function test_cannot_queue_import_that_does_not_implement_should_queue()
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Importable should implement ShouldQueue to be queued.');
@@ -49,10 +47,7 @@ class QueuedImportTest extends TestCase
         $import->queue('import-batches.xlsx');
     }
 
-    /**
-     * @test
-     */
-    public function can_queue_an_import()
+    public function test_can_queue_an_import()
     {
         $import = new QueuedImport();
 
@@ -63,10 +58,24 @@ class QueuedImportTest extends TestCase
         $this->assertInstanceOf(PendingDispatch::class, $chain);
     }
 
-    /**
-     * @test
-     */
-    public function can_queue_import_with_remote_temp_disk()
+    public function test_can_queue_an_import_with_batch_cache_and_file_store()
+    {
+        config()->set('queue.default', 'sync');
+        config()->set('excel.cache.driver', 'batch');
+        config()->set('excel.cache.illuminate.store', 'file');
+        config()->set('excel.cache.batch.memory_limit', 80);
+
+        // Reset the cache settings
+        $this->app->make(SettingsProvider::class)->provide();
+
+        $import = new QueuedImport();
+
+        $chain = $import->queue('import-batches.xlsx');
+
+        $this->assertInstanceOf(PendingDispatch::class, $chain);
+    }
+
+    public function test_can_queue_import_with_remote_temp_disk()
     {
         config()->set('excel.temporary_files.remote_disk', 'test');
 
@@ -100,10 +109,7 @@ class QueuedImportTest extends TestCase
         $this->assertInstanceOf(PendingDispatch::class, $chain);
     }
 
-    /**
-     * @test
-     */
-    public function can_keep_extension_for_temp_file_on_remote_disk()
+    public function test_can_keep_extension_for_temp_file_on_remote_disk()
     {
         config()->set('excel.temporary_files.remote_disk', 'test');
 
@@ -118,10 +124,7 @@ class QueuedImportTest extends TestCase
         (new QueuedImport())->queue('import-batches.xlsx');
     }
 
-    /**
-     * @test
-     */
-    public function can_queue_import_with_remote_temp_disk_and_prefix()
+    public function test_can_queue_import_with_remote_temp_disk_and_prefix()
     {
         config()->set('excel.temporary_files.remote_disk', 'test');
         config()->set('excel.temporary_files.remote_prefix', 'tmp/');
@@ -135,10 +138,7 @@ class QueuedImportTest extends TestCase
         $this->assertInstanceOf(PendingDispatch::class, $chain);
     }
 
-    /**
-     * @test
-     */
-    public function can_automatically_delete_temp_file_on_failure_when_using_remote_disk()
+    public function test_can_automatically_delete_temp_file_on_failure_when_using_remote_disk()
     {
         config()->set('excel.temporary_files.remote_disk', 'test');
         $tempFile = '';
@@ -159,10 +159,7 @@ class QueuedImportTest extends TestCase
         $this->assertTrue($tempFile->exists());
     }
 
-    /**
-     * @test
-     */
-    public function cannot_automatically_delete_temp_file_on_failure_when_using_local_disk()
+    public function test_cannot_automatically_delete_temp_file_on_failure_when_using_local_disk()
     {
         $tempFile = '';
 
@@ -181,10 +178,7 @@ class QueuedImportTest extends TestCase
         $this->assertTrue($tempFile->exists());
     }
 
-    /**
-     * @test
-     */
-    public function can_force_remote_download_and_deletion_for_each_chunk_on_queue()
+    public function test_can_force_remote_download_and_deletion_for_each_chunk_on_queue()
     {
         config()->set('excel.temporary_files.remote_disk', 'test');
         config()->set('excel.temporary_files.force_resync_remote', true);
@@ -204,10 +198,7 @@ class QueuedImportTest extends TestCase
         (new QueuedImport())->queue('import-batches.xlsx');
     }
 
-    /**
-     * @test
-     */
-    public function can_define_middleware_method_on_queued_import()
+    public function test_can_define_middleware_method_on_queued_import()
     {
         try {
             (new QueuedImportWithMiddleware())->queue('import-batches.xlsx');
@@ -216,10 +207,7 @@ class QueuedImportTest extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
-    public function can_define_retry_until_method_on_queued_import()
+    public function test_can_define_retry_until_method_on_queued_import()
     {
         try {
             (new QueuedImportWithRetryUntil())->queue('import-batches.xlsx');
@@ -228,10 +216,7 @@ class QueuedImportTest extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
-    public function can_define_max_exceptions_property_on_queued_import()
+    public function test_can_define_max_exceptions_property_on_queued_import()
     {
         $maxExceptionsCount = 0;
 

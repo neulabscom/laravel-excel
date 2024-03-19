@@ -10,10 +10,7 @@ use PHPUnit\Framework\Assert;
 
 class OnEachRowTest extends TestCase
 {
-    /**
-     * @test
-     */
-    public function can_import_each_row_individually()
+    public function test_can_import_each_row_individually()
     {
         $import = new class implements OnEachRow
         {
@@ -43,5 +40,30 @@ class OnEachRowTest extends TestCase
         $import->import('import.xlsx');
 
         $this->assertEquals(2, $import->called);
+    }
+
+    public function test_it_respects_the_end_column()
+    {
+        $import = new class implements OnEachRow
+        {
+            use Importable;
+
+            /**
+             * @param  Row  $row
+             */
+            public function onRow(Row $row)
+            {
+                // Accessing a row as an array calls toArray() without an end
+                // column. This saves the row in the cache, so we have to
+                // invalidate the cache once the end column changes
+                $row[0];
+
+                Assert::assertEquals([
+                    'test',
+                ], $row->toArray(null, false, true, 'A'));
+            }
+        };
+
+        $import->import('import.xlsx');
     }
 }
